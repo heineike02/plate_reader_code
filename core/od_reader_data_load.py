@@ -1,6 +1,8 @@
 import os
 import re
 import pandas as pd
+import xlrd
+import csv
 from openpyxl import load_workbook
 
 class OD_data_obj:
@@ -33,8 +35,11 @@ def get_OD_data(dirname,fname, ntimes, nrows, ncols,starting_row,starting_col):
     time_list = lines[1]
     time_list = time_list.split(',')[0:ntimes]
     #removes units and converts to minutes
-    time_list = [int(time_val[0:-1])/60.0  for time_val in time_list]
-    
+    if time_list[0][-1]=='"': 
+        #when conversion not done in excel, double quotes are around the entry
+        time_list = [int(time_val.strip('"')[0:-1])/60.0  for time_val in time_list]
+    else: 
+        time_list = [int(time_val[0:-1])/60.0  for time_val in time_list]
     #Import data as 8 rows of 12.  
     #Set data index to first row in which data can appear. 
     nn = 3 
@@ -47,7 +52,10 @@ def get_OD_data(dirname,fname, ntimes, nrows, ncols,starting_row,starting_col):
             for kk in range(ncols):
                 data_line = lines[nn]
                 data_line = re.split("[,\n]",data_line)
-                OD_data.data.append([float(data_val) for data_val in data_line[0:ntimes]])
+                if data_line[0][0] == '"':
+                    OD_data.data.append([float(data_val.strip('"')) for data_val in data_line[0:ntimes]])
+                else: 
+                    OD_data.data.append([float(data_val) for data_val in data_line[0:ntimes]])
                 nn +=1
 
     else:  
@@ -62,7 +70,10 @@ def get_OD_data(dirname,fname, ntimes, nrows, ncols,starting_row,starting_col):
             for kk in range(ncols):
                 data_line = lines[nn]
                 data_line = re.split("[,\n]",data_line)
-                OD_data.data.append([float(data_val) for data_val in data_line[0:ntimes]])
+                if data_line[0][0] == '"':
+                    OD_data.data.append([float(data_val.strip('"')) for data_val in data_line[0:ntimes]])
+                else: 
+                    OD_data.data.append([float(data_val) for data_val in data_line[0:ntimes]])
                 nn +=1
             nn +=2
     
@@ -176,3 +187,22 @@ def load_thermo_data(fname):
     data.set_index('Reading',inplace = True)   
 
     return data    
+
+def xlsx_to_csv(fname):
+    #converts xlsx files from the lim lab plate reader to .csv files.  Cannot convert degree symbol correctly. 
+    x =  xlrd.open_workbook(os.path.normpath(fname))
+    fname_out = fname.split('.')[0]+".csv"
+    x1 = x.sheet_by_name('Magellan Sheet 1')
+    csvfile = open(os.path.normpath(fname_out),'wb')
+    writecsv = csv.writer(csvfile, quoting=csv.QUOTE_ALL)
+    for rownum in xrange(x1.nrows):
+        row = x1.row_values(rownum)
+        row_encoded = []
+        for s in row: 
+            if isinstance(s,unicode):
+                row_encoded.append(s.encode('utf-8'))
+            else: 
+                row_encoded.append(s)
+        writecsv.writerow(row_encoded)
+    csvfile.close()
+    return fname_out
